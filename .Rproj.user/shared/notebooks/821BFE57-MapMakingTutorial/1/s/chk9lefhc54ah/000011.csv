@@ -1,0 +1,4 @@
+"0","ggsave(""./StudyAreaMap.jpeg"", plot = final, dpi = 300, units = ""mm"", width = 185, height = 150)
+"
+"2","Error: object 'final' not found
+"

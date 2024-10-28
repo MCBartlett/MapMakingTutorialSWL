@@ -85,6 +85,7 @@ library(fishualize)
 library(RColorBrewer)
 library(scico)
 ```
+
 ```{r}
 #Example colours 
 MetBrewer::met.brewer(name = "VanGogh2")
@@ -92,13 +93,11 @@ fishualize::fishualize(option= "Oncorhynchus_mykiss")
 scico::scico_palette_show()
 ```
 
-
-
 # How to make a map
 
-## Scenario 
+## Scenario
 
-You just received a grant to study the effects of elevation gradients on salmon sightings. Like any good scientist you are going to start your research by making a study area map.  
+You just received a grant to study the effects of elevation gradients on salmon sightings. Like any good scientist you are going to start your research by making a study area map.
 
 ## Lets start by making a map of canada
 
@@ -149,7 +148,7 @@ bc = bc_bound()%>%
 
 ```
 
-Next lets start building our map. We will begin by adding all of the layers using the geom_spatvector function.
+Next lets start building our map. We will begin by adding all of the layers using the `geom_spatvector()` function.
 
 ```{r Canada Map Step 1, warning=FALSE, message=FALSE }
 
@@ -164,7 +163,7 @@ ggplot()+
 
 ```
 
-Notice how even though we added all the layers we are still to zoomed out to see our study area? We can use the function coord_sf() to set limits in our map. But first we will programmatically determine the map extents in r
+Notice how even though we added all the layers we are still to zoomed out to see our study area? We can use the function `coord_sf()` to set limits in our map. But first we will programmatically determine the map extents in r using the `ext()` function. 
 
 ```{r Canada Map Step 2, warning=FALSE, message=FALSE}
 
@@ -184,7 +183,7 @@ ggplot()+
 
 ```
 
-Good Job! Now we can add some color and a red box that shows the location of our study area.
+Good Job! Now we can add some color and a red box that shows the location of our study area. The `fill =` argument adds colour to the inside of the polygons, if we wanted to change the outline colour we could use `col =`. 
 
 ```{r Canada Map Step 3, warning=FALSE, message=FALSE}
 # read in study area data 
@@ -209,7 +208,7 @@ ggplot() +
            ylim = c(cad_ext$ymin, cad_ext$ymax))
 ```
 
-Now lets make some final adjustments to the theme and background colors and assign the map to an object called canadamap so that we can come back to it later.
+Now lets make some final adjustments to the theme and background colors and assign the map to an object called canadamap so that we can come back to it later. 
 
 ```{r Canada map final, warning=FALSE, message=FALSE}
 canadamap = ggplot() +
@@ -301,7 +300,7 @@ ggplot()+
   theme_void()
 ```
 
-Next, because we got rid of the graticule and background using theme_void() we are going to add a north arrow, scale bar and some final layout changes.
+Next, because we got rid of the graticule and background using `theme_void()` we are going to add a north arrow, scale bar and some final layout changes.
 
 ```{r Map dem step 4, warning=FALSE, message=FALSE}
 ggplot()+

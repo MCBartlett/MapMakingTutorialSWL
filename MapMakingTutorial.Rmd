@@ -12,7 +12,7 @@ subtitle: Salmon Watersheds Lab
 knitr::opts_chunk$set(echo = TRUE)
 #libraries that are used in the demo 
 
-libs = c("dplyr", "sf","terra", "tidyterra", "leaflet","bcmaps", "ggplot2", "geodata", "patchwork", "ggnewscale","scico","fishualize", "MetBrewer")
+libs = c("dplyr", "sf","terra", "tidyterra", "leaflet","bcmaps", "ggplot2", "geodata", "patchwork", "ggnewscale","scico","fishualize", "MetBrewer", "ggspatial")
 
 #check if packages are installed 
 install.packages(setdiff(libs, rownames(installed.packages())),repos = "http://cran.us.r-project.org")
@@ -292,7 +292,7 @@ ggplot()+
                        na.value = NA,
                        guide = "none") +
   ggnewscale::new_scale_fill()+
-  geom_spatraster(data = demcrop, alpha = 0.75 )+
+  geom_spatraster(data = demcrop, alpha = 0.65 )+
   scale_fill_hypso_c(palette = "usgs-gswa2", name = "Elevation (m)", 
                      guide = guide_colourbar(direction = "horizontal", 
                                              order = 2,
@@ -309,7 +309,7 @@ ggplot()+
                        na.value = NA,
                        guide = "none") +
   ggnewscale::new_scale_fill()+
-  geom_spatraster(data = demcrop, alpha = 0.7 )+
+  geom_spatraster(data = demcrop, alpha = 0.65 )+
   scale_fill_hypso_c(palette = "usgs-gswa2", name = "Elevation (m)", 
                      guide = guide_colourbar(direction = "horizontal", 
                                              order = 2,

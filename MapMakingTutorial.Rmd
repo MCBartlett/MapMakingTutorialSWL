@@ -12,10 +12,10 @@ subtitle: Salmon Watersheds Lab
 knitr::opts_chunk$set(echo = TRUE)
 #libraries that are used in the demo 
 
-libs = c("dplyr", "sf","terra", "tidyterra", "leaflet","bcmaps", "ggplot2", "fishualize","geodata", "patchwork")
+libs = c("dplyr", "sf","terra", "tidyterra", "leaflet","bcmaps", "ggplot2", "geodata", "patchwork", "ggnewscale","scico","fishualize", "MetBrewer")
 
 #check if packages are installed 
-install.packages(setdiff(libs, rownames(installed.packages())))
+install.packages(setdiff(libs, rownames(installed.packages())),repos = "http://cran.us.r-project.org")
 library(dplyr)
 library(sf)
 library(terra)
@@ -23,10 +23,13 @@ library(tidyterra)
 library(leaflet)
 library(bcmaps)
 library(ggplot2)
-library(fishualize)
 library(geodata)
 library(patchwork)
-
+library(ggnewscale)
+library(ggspatial)
+library(MetBrewer)
+library(fishualize)
+library(scico)
 ```
 
 ## Useful Packages
@@ -80,7 +83,22 @@ library(MetBrewer)
 library(viridis)
 library(fishualize)
 library(RColorBrewer)
+library(scico)
 ```
+```{r}
+#Example colours 
+MetBrewer::met.brewer(name = "VanGogh2")
+fishualize::fishualize(option= "Oncorhynchus_mykiss")
+scico::scico_palette_show()
+```
+
+
+
+# How to make a map
+
+## Scenario 
+
+You just received a grant to study the effects of elevation gradients on salmon sightings. Like any good scientist you are going to start your research by making a study area map.  
 
 ## Lets start by making a map of canada
 
@@ -182,9 +200,9 @@ study_box = study_ext %>%
 
 
 ggplot() +
-  geom_spatvector(data = world, fill = "#7f7f7f") +
-  geom_spatvector(data = cad , fill = "#b3b3b3") +
-  geom_spatvector(data = great_lakes, fill = "lightskyblue3") +
+  geom_spatvector(data = world, fill = "#a3aeb6") +
+  geom_spatvector(data = cad , fill = "#c6c9ce") +
+  geom_spatvector(data = great_lakes, fill = "#97afb9") +
   geom_spatvector(data = bc, fill = "#e5e5e5") +
   geom_spatvector(data = study_box, col = "red", fill = "#00000000", linewidth = 1) +
   coord_sf(xlim = c(cad_ext$xmin, cad_ext$xmax),
@@ -195,15 +213,15 @@ Now lets make some final adjustments to the theme and background colors and assi
 
 ```{r Canada map final, warning=FALSE, message=FALSE}
 canadamap = ggplot() +
-              geom_spatvector(data = world, fill = "#7f7f7f") +
-              geom_spatvector(data = cad , fill = "#b3b3b3") +
-              geom_spatvector(data = great_lakes, fill = "lightskyblue3") +
+              geom_spatvector(data = world, fill = "#a3aeb6") +
+              geom_spatvector(data = cad , fill = "#c6c9ce") +
+              geom_spatvector(data = great_lakes, fill = "#97afb9") +
               geom_spatvector(data = bc, fill = "#e5e5e5") +
               geom_spatvector(data = study_box, col = "red", fill = "#00000000", linewidth = 1) +
               coord_sf(xlim = c(cad_ext$xmin, cad_ext$xmax),
                        ylim = c(cad_ext$ymin, cad_ext$ymax))+
               theme_bw() +
-              theme(panel.background = element_rect(fill = "lightskyblue3"),
+              theme(panel.background = element_rect(fill = "#97afb9"),
                     axis.ticks = element_blank(),
                     axis.text = element_blank(),
                     plot.background = element_blank())
@@ -283,7 +301,7 @@ ggplot()+
   theme_void()
 ```
 
-Next, because we got rid of the graticule and background using theme_void() we are goin to add a north arrow, scale bar and some final layout changes.
+Next, because we got rid of the graticule and background using theme_void() we are going to add a north arrow, scale bar and some final layout changes.
 
 ```{r Map dem step 4, warning=FALSE, message=FALSE}
 ggplot()+
@@ -292,7 +310,7 @@ ggplot()+
                        na.value = NA,
                        guide = "none") +
   ggnewscale::new_scale_fill()+
-  geom_spatraster(data = demcrop, alpha = 0.75 )+
+  geom_spatraster(data = demcrop, alpha = 0.7 )+
   scale_fill_hypso_c(palette = "usgs-gswa2", name = "Elevation (m)", 
                      guide = guide_colourbar(direction = "horizontal", 
                                              order = 2,
@@ -394,7 +412,7 @@ geom_spatvector(data = bc, fill = "#e5e5e5")+
 Oh no, because we added new layers to the map we have changed the extent.Lets go ahead and create a study area extent object to fix this problem.
 
 ```{r study area step 4, warning=FALSE, message=FALSE}
-study_ext = study_area %>%
+study_ext_bc = study_area %>%
   project(bc)%>% #the map take the crs of the first layer 
   ext()
 
@@ -414,8 +432,8 @@ geom_spatvector(data = bc, fill = "#e5e5e5")+
   geom_sf(data = study_plots, aes(col = "Study Points"), size = 2)+
   scale_color_manual(values = "grey20", labels = "Study Sites")+
   labs(color = NULL)+
-  coord_sf(xlim = c(study_ext$xmin, study_ext$xmax),
-          ylim = c(study_ext$ymin, study_ext$ymax))+
+  coord_sf(xlim = c(study_ext_bc$xmin, study_ext_bc$xmax),
+          ylim = c(study_ext_bc$ymin, study_ext_bc$ymax))+
   theme_bw()+
   theme(legend.key=element_rect(fill=NA))
 ```
@@ -439,12 +457,12 @@ geom_spatvector(data = bc, fill = "#e5e5e5")+
   geom_sf(data = study_plots, aes(col = "Study Points"), size = 2)+
   scale_color_manual(values = "grey20", labels = "Study Sites")+
   labs(color = NULL)+
-  coord_sf(xlim = c(study_ext$xmin, study_ext$xmax),
-          ylim = c(study_ext$ymin, study_ext$ymax))+
+  coord_sf(xlim = c(study_ext_bc$xmin, study_ext_bc$xmax),
+          ylim = c(study_ext_bc$ymin, study_ext_bc$ymax))+
   theme_bw()+
   theme(
     legend.position = "inside",
-    legend.position.inside = c(0.85, 0.85),panel.background = element_rect(fill = "lightskyblue3"),
+    legend.position.inside = c(0.85, 0.85),panel.background = element_rect(fill = "#97afb9"),
     legend.background = element_rect(fill = NA),
     legend.text = element_text(hjust = 0.5, size = 9),
     legend.title = element_text(hjust = 0.5),

@@ -1,6 +1,0 @@
-"0",""
-"0","ggplot()+"
-"0","  geom_spatvector(data = world)+"
-"0","  geom_spatvector(data = cad ) +"
-"0","  geom_spatvector(data = great_lakes) +"
-"0","  geom_spatvector(data = bc ) "

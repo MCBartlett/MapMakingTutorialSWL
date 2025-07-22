@@ -138,7 +138,7 @@ world <- geodata::world(path =data_dir) %>%
 
 
 # read in vancouver island shapfile 
-study_area = vect("./_data/vancouver-island_1235.geojson")
+study_area = vect("./_data/gilford_island.geojson")
 
 
 #get BC 
@@ -187,7 +187,7 @@ Good Job! Now we can add some color and a red box that shows the location of our
 
 ```{r Canada Map Step 3, warning=FALSE, message=FALSE}
 # read in study area data 
-study_area = vect("./_data/vancouver-island_1235.geojson")
+study_area = vect("./_data/gilford_island.geojson")
 
 study_ext = study_area %>%
   project("epsg:3347")%>%
@@ -313,13 +313,13 @@ ggplot()+
   scale_fill_hypso_c(palette = "usgs-gswa2", name = "Elevation (m)", 
                      guide = guide_colourbar(direction = "horizontal", 
                                              order = 2,
-                                             title.position = "top"), na.value = NA,
+                                             title.position = "top", legend.position = "inside", legend.position.inside = c(0.9, 0.1)), na.value = NA,
                      breaks = c(0,1000,2000))+
   theme_void()+
   theme(
     legend.position = "inside",
-    legend.position.inside = c(0.4, 0.20))+
-  ggspatial::annotation_north_arrow(location = "tr", which_north = "true",
+    legend.position.inside = c(0.9, 0.1))+
+  ggspatial::annotation_north_arrow(location = "tl", which_north = "true",
                                     pad_x = unit(1, "in"), pad_y = unit(0.5, "in"),
                                     height = unit(2,"cm"), width = unit(2,"cm"),
                                     style = ggspatial::north_arrow_nautical(
@@ -327,7 +327,7 @@ ggplot()+
                                       line_col = "grey"
                                                                         ))+
   ggspatial::annotation_scale(
-    location = "bl",
+    location = "br",
     pad_x = unit(1.7, "in"), pad_y = unit(0.3, "in"),
     bar_cols = c("grey40", "white"),
     text_family = "Arial",

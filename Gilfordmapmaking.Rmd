@@ -1,0 +1,691 @@
+---
+title: "Spatial Data and Map Making Tutorial"
+author: "Spencer Dakin Kuiper"
+date: "`r Sys.Date()`"
+output:
+  html_document: default
+  pdf_document: default
+subtitle: Salmon Watersheds Lab
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#libraries that are used in the demo 
+
+libs = c("dplyr", "sf","terra", "tidyterra", "leaflet","bcmaps", "ggplot2", "geodata", "patchwork", "ggnewscale","scico","fishualize", "MetBrewer", "ggspatial")
+
+#check if packages are installed 
+install.packages(setdiff(libs, rownames(installed.packages())),repos = "http://cran.us.r-project.org")
+library(dplyr)
+library(sf)
+library(terra)
+library(tidyterra)
+library(leaflet)
+library(bcmaps)
+library(ggplot2)
+library(geodata)
+library(patchwork)
+library(ggnewscale)
+library(ggspatial)
+library(MetBrewer)
+library(fishualize)
+library(scico)
+library(osmdata)
+library(tidyverse)
+```
+
+## Useful Packages
+
+Below is a list of useful packages for making maps in r.
+
+```{r packages, eval = FALSE, warning=FALSE, message=FALSE}
+library(dplyr) #for data manipulation and stuff 
+library(sf) #to read and process vector data 
+library(terra) # to read and process raster data 
+library(tidyterra) #useful tools for raster mapping 
+library(tmap) #visualization package 
+library(leaflet) #interactive mapping package 
+library(bcdata) #access to the bc data catalog 
+library(bcmaps) #access to common spatial data via bc data catalog 
+library(ggplot2) # visualization package 
+library(lidR) #used to read, process and visualize lidar data 
+library(rnaturalearth) # used to download data from  natural earth 
+library(rnaturalearthdata) # used to download data from  natural earth  
+library(ggspatial) #useful functions for adding scale bars and north arrows 
+library(geodata) #download geospatial data 
+library(patchwork) #create inset maps and complex figures 
+```
+
+## Books and tutorials
+
+This is my favourite and probably the best book for all things geospatial in R: <https://r.geocompx.org/>
+
+These tutorials us raster data but is a good introduction <https://rspatial.org/>
+
+This is a workshop for using Lidar data. It is more advanced but useful if you would like to learn: <https://tgoodbody.github.io/lidRtutorial/>
+
+## Websites to download data from
+
+<https://earthengine.google.com/>
+
+<https://climatena.ca/>
+
+<https://opendata.nfis.org/mapserver/nfis-change_eng.html>
+
+<https://lidar.gov.bc.ca/>
+
+<https://www.naturalearthdata.com/>
+
+<https://catalogue.data.gov.bc.ca/>
+
+## packages for colours
+
+```{r packages for colours , eval = FALSE, warning=FALSE, message=FALSE}
+library(MetBrewer)
+library(viridis)
+library(fishualize)
+library(RColorBrewer)
+library(scico)
+```
+
+```{r}
+#Example colours 
+MetBrewer::met.brewer(name = "VanGogh2")
+fishualize::fishualize(option= "Oncorhynchus_mykiss")
+scico::scico_palette_show()
+```
+
+# How to make a map
+
+## Scenario
+
+You just received a grant to study the effects of elevation gradients on salmon sightings. Like any good scientist you are going to start your research by making a study area map.
+
+## Lets start by making a map of canada
+
+First we need to download or read all of the required data
+
+```{r Canada Map, warning=FALSE, message=FALSE}
+
+##Download data directly from URL,using BC maps, geodata, and read in files from hardrive 
+
+#Great Lakes 
+url <- "https://www.sciencebase.gov/catalog/file/get/530f8a0ee4b0e7e46bd300dd"
+
+dest <- "./_data/great_lakes.zip"
+
+if (!file.exists(dest)) {
+  download.file(url, destfile = dest, mode = "wb")
+}
+
+unzip_dir <- "./_data/great_lakes"
+
+unzip(dest, exdir = unzip_dir)
+
+great_lakes <- list.files(unzip_dir, pattern = "hydro.*\\.shp$", recursive = T, full.names = T) %>%
+  purrr::map(vect) %>%
+  purrr::map(aggregate) %>%
+  vect() %>%
+  project("epsg:3347")
+
+data_dir = "./_data/"
+
+# Get canadian provinces 
+
+cad <- geodata::gadm("Canada", level = 1, path = data_dir)
+
+#get other countries 
+world <- geodata::world(path =data_dir) %>%
+  project("epsg:3347")
+
+
+# read in gilford island shapfile 
+study_area = vect("./_data/gilford_island.geojson")
+
+
+#get BC 
+bc = bc_bound()%>%
+  vect()
+
+
+land_10m <- ne_download(scale = 10, type = "land", category = "physical", returnclass = "sf") %>%
+  st_transform(crs = 3005) %>%  # BC Albers
+  vect()
+
+
+```
+
+Next lets start building our map. We will begin by adding all of the layers using the `geom_spatvector()` function.
+
+```{r Canada Map Step 1, warning=FALSE, message=FALSE }
+
+ggplot()+
+  geom_spatvector(data = world)+
+  geom_spatvector(data = cad ) +
+  geom_spatvector(data = bc ) 
+  
+
+
+
+
+```
+
+Notice how even though we added all the layers we are still to zoomed out to see our study area? We can use the function `coord_sf()` to set limits in our map. But first we will programmatically determine the map extents in r using the `ext()` function. 
+
+```{r Canada Map Step 2, warning=FALSE, message=FALSE}
+
+# Calculate extent based on BC instead of Canada
+bc_ext <- bc %>%
+  project(world) %>% 
+  ext()
+
+ggplot()+
+  geom_spatvector(data = world)+
+  geom_spatvector(data = cad ) +
+  geom_spatvector(data = bc ) +
+  coord_sf(xlim = c(bc_ext$xmin, bc_ext$xmax),
+           ylim = c(bc_ext$ymin, bc_ext$ymax))
+
+
+```
+
+Good Job! Now we can add some color and a red box that shows the location of our study area. The `fill =` argument adds colour to the inside of the polygons, if we wanted to change the outline colour we could use `col =`. 
+
+```{r Canada Map Step 3, warning=FALSE, message=FALSE}
+# read in study area data 
+study_area = vect("./_data/gilford_island.geojson")
+
+study_ext = study_area %>%
+  project("epsg:3347")%>%
+  ext()
+
+
+study_box = study_ext %>%
+  vect("epsg:3347")
+
+
+ggplot() +
+  geom_spatvector(data = world, fill = "#a3aeb6") +
+  geom_spatvector(data = cad , fill = "#c6c9ce") +
+  geom_spatvector(data = bc, fill = "#e5e5e5") +
+  geom_spatvector(data = study_box, col = "red", fill = "#00000000", linewidth = .5) +
+  coord_sf(xlim = c(bc_ext$xmin, bc_ext$xmax),
+           ylim = c(bc_ext$ymin, bc_ext$ymax))
+```
+
+Now lets make some final adjustments to the theme and background colors and assign the map to an object called canadamap so that we can come back to it later. 
+
+```{r Canada map final, warning=FALSE, message=FALSE}
+bcmap = ggplot() +
+              geom_spatvector(data = world, fill = "#a3aeb6") +
+              geom_spatvector(data = cad , fill = "#c6c9ce") +
+              geom_spatvector(data = bc, fill = "#e5e5e5") +
+              geom_spatvector(data = study_box, col = "red", fill = "#00000000", linewidth = .5) +
+              coord_sf(xlim = c(bc_ext$xmin, bc_ext$xmax),
+                       ylim = c(bc_ext$ymin, bc_ext$ymax))+
+              theme_bw() +
+              theme(panel.background = element_rect(fill = "#97afb9"),
+                    axis.ticks = element_blank(),
+                    axis.text = element_blank(),
+                    plot.background = element_blank())
+bcmap
+```
+
+
+Congratulations you have now made a map of Canada that shows the location of a study area on Vancouver island. In the next section we will create a map of Vancouver island.
+
+## Mapping Rasters: Elevation of the study area
+```{r}
+# Create polygon from your coordinates
+loose_lake_coords <- matrix(c(
+  -126.465, 50.778,   #NW
+  -126.321, 50.778,   # NE 
+  -126.321, 50.738,            # SE
+  -126.465, 50.738,            # SW
+  -126.465, 50.778    # Close polygon
+), ncol = 2, byrow = TRUE)
+
+# Create sf polygon
+loose_lake_area <- st_polygon(list(loose_lake_coords)) %>%
+  st_sfc(crs = 4326) %>%
+  st_sf()
+
+# Plot to check
+plot(st_geometry(loose_lake_area))
+```
+
+Lets start by getting a bit more data.
+
+```{r Read in Data, warning=FALSE, message=FALSE}
+#download and process the digital elevation model for the study area 
+loose_lake_area_sf = loose_lake_area%>%
+  st_as_sf()
+dem = cded_terra(aoi = loose_lake_area_sf)
+plot(dem)
+plot(st_geometry(loose_lake_area_sf), add = T)
+
+gilford_sf = study_area%>%
+  st_as_sf()
+gil_dem = cded_terra(aoi = gilford_sf)
+plot(gil_dem)
+plot(st_geometry(gilford_sf), add = T)
+
+
+```
+
+Good you now have a digital elevation model for the study area. Notice how the elevation model extends outside of the study area. Lets fix that.
+
+```{r Mask dem, warning=FALSE, message=FALSE}
+
+loose_lake <- vect(loose_lake_area_sf)
+
+study_area_proj = loose_lake%>%
+  project(dem) #rpoject the study area shapefile to the same crs as the dem
+
+demcrop = mask(dem,study_area_proj)
+plot(demcrop) 
+
+
+gil_area_proj = study_area%>%
+  project(gil_dem) #rpoject the study area shapefile to the same crs as the dem
+
+gil_demcrop = mask(gil_dem,gil_area_proj)
+plot(gil_demcrop) 
+
+
+```
+```{r}
+# Step 1: Get rivers and lakes for the broader study area (similar to getting DEM)
+loose_lake_area_sf = loose_lake_area %>%
+  st_as_sf()
+
+# Get rivers for the broader area using bounding box
+study_area_bbox <- st_bbox(gilford_box)
+bc_streams_broad <- bcdc_query_geodata("92344413-8035-4c08-b996-65a9b3f62fca") %>%
+  filter(BBOX(study_area_bbox, crs = 4326)) %>%
+  filter(STREAM_ORDER >= 3) %>%
+  collect()
+
+bc_lakes_broad <- bcdc_query_geodata("WHSE_BASEMAPPING.FWA_LAKES_POLY") %>%
+  filter(BBOX(study_area_bbox, crs = 4326)) %>%
+  filter(AREA_HA > 0.5) %>%  # Filter out very small water bodies
+  collect()
+
+# Step 2: Project to match your DEM CRS (similar to study_area_proj)
+bc_streams_proj <- st_transform(bc_streams_broad, crs = crs(dem))
+bc_lakes_proj <- st_transform(bc_lakes_broad, crs = crs(dem))
+study_area_proj <- loose_lake %>% project(dem)
+
+# Step 3: Crop to island boundary (similar to demcrop = mask(dem, study_area_proj))
+streams <- st_intersection(bc_streams_proj, st_as_sf(study_area_proj))
+lakes<- st_intersection(bc_lakes_proj, st_as_sf(study_area_proj))
+gil_streams <- st_intersection(bc_streams_proj, st_as_sf(gil_area_proj))
+gil_lakes <- st_intersection(bc_lakes_proj, st_as_sf(gil_area_proj))
+
+# Plot to check (similar to your plot(demcrop))
+plot(st_geometry(streams), col = "blue")
+plot(st_geometry(lakes), col = "lightblue", add = T)
+
+plot(st_geometry(gil_streams), col = "blue")
+plot(st_geometry(gil_lakes), col = "lightblue", add = T)
+
+
+```
+
+Much better. Now that we have an elevation model we can move into ggplot to further customize the map.
+
+```{r Map Dem step 1, warning=FALSE, message=FALSE}
+ggplot()+
+  geom_spatraster(data = demcrop)
+
+ggplot()+
+  geom_spatraster(data = gil_demcrop)
+
+```
+
+Lets adjust the colour and customize the legend.
+
+```{r Map dem step 2, warning=FALSE, message=FALSE}
+ggplot()+
+  geom_spatraster(data = demcrop )+
+  scale_fill_hypso_c(palette = "usgs-gswa2", name = "Elevation (m)", 
+                     guide = guide_colourbar(direction = "horizontal", 
+                                             order = 2,
+                                             title.position = "top"), na.value = NA)
+
+ggplot()+
+  geom_spatraster(data = gil_demcrop )+
+  scale_fill_hypso_c(palette = "usgs-gswa2", name = "Elevation (m)", 
+                     guide = guide_colourbar(direction = "horizontal", 
+                                             order = 2,
+                                             title.position = "top"), na.value = NA)
+```
+
+Good! Now lets make the elevation really pop by creating a hillshade for a 3d effect and adjusting the theme.
+
+```{r Map dem step 3, warning=FALSE, message=FALSE}
+slope <- terrain(gil_demcrop, "slope", unit = "radians")
+aspect <- terrain(gil_demcrop, "aspect", unit = "radians")
+hill <- shade(slope, aspect, 30, 270)
+
+# normalize names
+names(hill) <- "shades"
+
+# Hillshading, but we need a palette
+pal_greys <- hcl.colors(1000, "Grays")
+
+
+ggplot()+
+  geom_spatraster(data = hill, alpha = 1) +
+  scale_fill_gradientn(colors = pal_greys,
+                       na.value = NA,
+                       guide = "none") +
+  ggnewscale::new_scale_fill()+
+  geom_spatraster(data = demcrop, alpha = 0.65 )+
+  scale_fill_hypso_c(palette = "usgs-gswa2", name = "Elevation (m)", 
+                     guide = guide_colourbar(direction = "horizontal", 
+                                             order = 2,
+                                             title.position = "top"), na.value = NA)+
+  theme_void()
+
+ggplot()+
+  geom_spatraster(data = hill, alpha = 1) +
+  scale_fill_gradientn(colors = pal_greys,
+                       na.value = NA,
+                       guide = "none") +
+  ggnewscale::new_scale_fill()+
+  geom_spatraster(data = gil_demcrop, alpha = 0.65 )+
+  scale_fill_hypso_c(palette = "usgs-gswa2", name = "Elevation (m)", 
+                     guide = guide_colourbar(direction = "horizontal", 
+                                             order = 2,
+                                             title.position = "top"), na.value = NA)+
+  theme_void()
+```
+
+Next, because we got rid of the graticule and background using `theme_void()` we are going to add a north arrow, scale bar and some final layout changes.
+
+```{r Map dem step 4, warning=FALSE, message=FALSE}
+ggplot()+
+  geom_spatraster(data = hill, alpha = 1) +
+  scale_fill_gradientn(colors = pal_greys,
+                       na.value = NA,
+                       guide = "none") +
+  ggnewscale::new_scale_fill()+
+  geom_spatraster(data = demcrop, alpha = 0.65 )+
+  scale_fill_hypso_c(palette = "usgs-gswa2", name = "Elevation (m)", 
+                     guide = guide_colourbar(direction = "horizontal", 
+                                             order = 2,
+                                             title.position = "top", legend.position = "inside", legend.position.inside = c(0.9, 0.1)), na.value = NA,
+                     breaks = c(0,1000,2000))+
+  theme_void()+
+  theme(
+    legend.position = "inside",
+    legend.position.inside = c(0.9, 0.1))+
+  ggspatial::annotation_north_arrow(location = "tl", which_north = "true",
+                                    pad_x = unit(1, "in"), pad_y = unit(0.5, "in"),
+                                    height = unit(2,"cm"), width = unit(2,"cm"),
+                                    style = ggspatial::north_arrow_nautical(
+                                      fill = c("grey40", "white"),
+                                      line_col = "grey"
+                                                                        ))+
+  ggspatial::annotation_scale(
+    location = "br",
+    pad_x = unit(1.7, "in"), pad_y = unit(0.3, "in"),
+    bar_cols = c("grey40", "white"),
+    text_family = "Arial",
+    width_hint = 0.3
+  ) 
+```
+
+```{r}
+# Calculate current extent from your DEM
+current_ext <- ext(demcrop)
+gil_current_ext <- ext(gil_demcrop)
+
+ggplot()+
+  geom_spatraster(data = hill, alpha = 1) +
+  scale_fill_gradientn(colors = pal_greys,
+                       na.value = NA,
+                       guide = "none") +
+  ggnewscale::new_scale_fill()+
+  geom_spatraster(data = demcrop, alpha = 0.65 )+
+  scale_fill_hypso_c(palette = "usgs-gswa2", name = "Elevation (m)", 
+                     guide = guide_colourbar(direction = "vertical", 
+                                             order = 2,
+                                             title.position = "top"), na.value = NA,
+                     breaks = c(0,400,800))+
+  # Add water features
+  geom_sf(data = streams, color = "#2166ac", alpha = 0.7, linewidth = 0.5) +
+  geom_sf(data = lakes, fill = "#4575b4", color = "#2166ac", alpha = 1) +
+  # Force the extent to stay the same
+  coord_sf(xlim = c(current_ext$xmin, current_ext$xmax),
+           ylim = c(current_ext$ymin, current_ext$ymax),
+           expand = FALSE) +
+  theme_void()+
+  theme(
+    legend.position = "inside",
+    legend.position.inside = c(0.9, 0.3))+
+  ggspatial::annotation_north_arrow(location = "tl", which_north = "true",
+                                    pad_x = unit(.125, "in"), pad_y = unit(0.125, "in"),
+                                    height = unit(2,"cm"), width = unit(2,"cm"),
+                                    style = ggspatial::north_arrow_nautical(
+                                      fill = c("grey40", "white"),
+                                      line_col = "grey"
+                                                                        ))+
+  ggspatial::annotation_scale(
+    location = "bl",
+    pad_x = unit(0.5, "in"), pad_y = unit(0.1, "in"),
+    bar_cols = c("grey40", "white"),
+    text_family = "Arial",
+    width_hint = 0.2
+  )
+
+
+ggplot()+
+  geom_spatraster(data = hill, alpha = 1) +
+  scale_fill_gradientn(colors = pal_greys,
+                       na.value = NA,
+                       guide = "none") +
+  ggnewscale::new_scale_fill()+
+  geom_spatraster(data = gil_demcrop, alpha = 0.65 )+
+  scale_fill_hypso_c(palette = "usgs-gswa2", name = "Elevation (m)", 
+                     guide = "none", na.value = NA,
+                     breaks = c(0,400,800))+
+  # Add water features
+  geom_sf(data = gil_streams, color = "#2166ac", alpha = 0.7, linewidth = 0.5) +
+  geom_sf(data = gil_lakes, fill = "#4575b4", color = "#2166ac", alpha = 1) +
+  # Force the extent to stay the same
+  coord_sf(xlim = c(gil_current_ext$xmin, gil_current_ext$xmax),
+           ylim = c(gil_current_ext$ymin, gil_current_ext$ymax),
+           expand = FALSE) +
+  theme_void()
+  
+  
+                                                                        
+
+  
+```
+
+
+
+
+
+
+Now lets bring all of the techniques together and create a publication ready study area map show study plot locations on Vancouver island.
+
+We will begin by creating plot locations.
+
+
+
+Lets start by adding our study area and study plots to a map
+
+```{r study area step 1 , warning=FALSE, message=FALSE}
+
+
+
+study_sites<- data.frame(x=c(-126.39342774724248,-126.43089669745045,-126.43688899948654, -126.4449207795792),
+                      y= c(50.754201586035606,
+                             50.75277261612688,
+                             50.74276248135722,
+                             50.762807093580996),
+  Plot_label= c("Loose Lake","Minihump Cr.","Connector Cr.","Scott Cove Cr."))
+
+# Convert to sf object
+study_sites_sf <- st_as_sf(study_sites, coords = c("x", "y"), crs = 4326)
+                         
+ggplot()+
+  geom_spatvector(data = loose_lake)+
+  geom_sf(data = study_sites_sf, aes(col = "Study sites")) +
+  geom_sf_text(data = study_sites_sf, aes(label = Plot_label), 
+               color = "black", size = 3, fontface = "bold",
+               nudge_y = 0.002) +  # Offset text above points
+  coord_sf(xlim = c(current_ext$xmin, current_ext$xmax),
+           ylim = c(current_ext$ymin, current_ext$ymax),
+           expand = FALSE) 
+  
+  
+           
+             
+            
+        
+  
+
+
+```
+
+This time lets start by making it a bit more pretty right off the bat.
+
+```{r study area step 2 , warning=FALSE, message=FALSE}
+ggplot()+
+  geom_spatvector(data = loose_lake_area_sf)+
+  geom_sf(data = study_sites_sf, aes(col = "Study Points"), size = 2)+
+  scale_color_manual(values = "grey20", labels = "Study Sites")+
+  labs(color = NULL)+
+  theme_bw()+
+  theme(legend.key=element_rect(fill=NA))+
+coord_sf(xlim = c(current_ext$xmin, current_ext$xmax),
+           ylim = c(current_ext$ymin, current_ext$ymax),
+           expand = FALSE) 
+  
+```
+
+Now its starting to look ok. Lets add a few more layers and reall make it sparkle.
+
+```{r study area step 3 , warning=FALSE, message=FALSE}
+
+
+ggplot()+
+geom_spatvector(data = bc, fill = "#e5e5e5")+
+  geom_spatraster(data = hill, alpha = 1) +
+  scale_fill_gradientn(colors = pal_greys,
+                       na.value = NA,
+                       guide = "none") +
+  ggnewscale::new_scale_fill()+
+  geom_spatraster(data = demcrop, alpha = 0.75) +
+  scale_fill_hypso_c(palette = "usgs-gswa2", name = "Elevation (m)", 
+                     guide = guide_colourbar(direction = "horizontal", 
+                                             order = 2,
+                                             title.position = "top"), na.value = NA) +
+  geom_spatvector(data = loose_lake, fill = NA)+
+  geom_sf(data = study_sites_sf, aes(col = "Study Points"), size = 2)+
+  scale_color_manual(values = "grey20", labels = "Study Sites")+
+  labs(color = NULL)+
+  
+  theme_bw()+
+  theme(legend.key=element_rect(fill=NA))
+  
+```
+
+Oh no, because we added new layers to the map we have changed the extent.Lets go ahead and create a study area extent object to fix this problem.
+
+```{r study area step 4, warning=FALSE, message=FALSE}
+study_ext = loose_lake %>%
+  project(bc)%>% #the map take the crs of the first layer 
+  ext()
+
+ggplot()+
+geom_spatvector(data = bc, fill = "#e5e5e5")+
+  geom_spatraster(data = hill, alpha = 1) +
+  scale_fill_gradientn(colors = pal_greys,
+                       na.value = NA,
+                       guide = "none") +
+  ggnewscale::new_scale_fill()+
+  geom_spatraster(data = demcrop, alpha = 0.75) +
+  scale_fill_hypso_c(palette = "usgs-gswa2", name = "Elevation (m)", 
+                     guide = guide_colourbar(direction = "horizontal", 
+                                             order = 2,
+                                             title.position = "top"), na.value = NA) +
+  geom_spatvector(data = loose_lake, fill = NA)+
+  # Add water features
+  geom_sf(data = streams, color = "#2166ac", alpha = 0.7, linewidth = 0.5) +
+  geom_sf(data = lakes, fill = "#4575b4", color = "#2166ac", alpha = 1) +
+  #geom_sf(data = study_sites_sf, aes(col = "Study Points"), size = 2, show.legend = FALSE)+
+  geom_sf_text(data = study_sites_sf, aes(label = Plot_label), 
+               color = "black", size = 3, fontface = "bold",
+             hjust= -0.1) + # Offset text above points 
+  scale_color_manual(values = "grey20", labels = "Study Sites")+
+  labs(color = NULL)+
+  coord_sf(xlim = c(study_ext$xmin, study_ext$xmax),
+           ylim = c(study_ext$ymin, study_ext$ymax),
+           expand = FALSE) +
+  theme_bw()+
+  theme(legend.key=element_rect(fill=NA))
+```
+Good job! Now lets make some final layout changes
+
+```{r study area step 5 , warning=FALSE, message=FALSE}
+
+study_area = ggplot()+
+geom_spatvector(data = land_10m, fill = "#e5e5e5")+
+  geom_spatraster(data = hill, alpha = 1) +
+  scale_fill_gradientn(colors = pal_greys,
+                       na.value = NA,
+                       guide = "none") +
+  ggnewscale::new_scale_fill()+
+  geom_spatraster(data = demcrop, alpha = 0.75) +
+  scale_fill_hypso_c(palette = "usgs-gswa2", name = "Elevation (m)", 
+                     guide = guide_colourbar(direction = "horizontal", 
+                                             order = 2,
+                                             title.position = "top"), na.value = NA) +
+  geom_spatvector(data = loose_lake, fill = NA)+
+  geom_sf(data = streams, color = "#2166ac", alpha = 0.7, linewidth = 0.5) +
+  geom_sf(data = lakes, fill = "#4575b4", color = "#2166ac", alpha = 1) +
+  geom_sf_text(data = study_sites_sf, aes(label = Plot_label), 
+               color = "black", size = 3, fontface = "bold",
+             hjust= -0.1) + # Offset text above points 
+  scale_color_manual(values = "grey20", labels = "Study Sites")+
+  labs(color = NULL)+
+  coord_sf(xlim = c(study_ext$xmin, study_ext$xmax),
+          ylim = c(study_ext$ymin, study_ext$ymax), expand = FALSE)+
+  scale_x_continuous(breaks = seq(-126.46, -126.32, by = 0.03)) +  # Every 0.06 degrees
+scale_y_continuous(breaks = seq(50.74, 50.78, by = 0.01)) +
+  theme_bw()+
+  theme(
+    legend.position = "inside",
+    legend.position.inside = c(0.85, 0.85),panel.background = element_rect(fill = "#97afb9"),
+    legend.background = element_rect(fill = NA),
+    legend.text = element_text(hjust = 0.5, size = 9),
+    legend.title = element_text(hjust = 0.5),
+    legend.key=element_rect(fill=NA),
+    legend.spacing.y = unit(0,"cm"),
+    axis.title.x = element_blank(),  # Removes "x" label
+  axis.title.y = element_blank() 
+    
+  )
+study_area
+```
+
+Now look at all of that blank space in the corner of the map. If only we had a map of canada laying around so that people from all over the world reading our article could figure out where this is..... Oh wait...
+
+```{r Final , warning=FALSE, message=FALSE}
+#we can use the patchworks package to create an inset map 
+Final = study_area + inset_element(bcmap, 0,0,0.4,0.4)
+
+Final
+```
+
+Lastly, lets export the map with correct sizing. This can be journal specific but I generally default to the [elsevier](https://www.elsevier.com/about/policies-and-standards/author/artwork-and-media-instructions/artwork-sizing) sizing. For this map we want it to be a full page width and roughly a 3rd of a page tall.
+
+```{r export, warning=FALSE, message=FALSE }
+ggsave("./StudyAreaMap.jpeg", plot = Final, dpi = 300, units = "mm", width = 185, height = 150)
+```
